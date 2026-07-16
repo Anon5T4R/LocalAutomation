@@ -1,0 +1,58 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#155e75"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- fundo -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="512" rx="200" fill="url(#sheen)"/>
+
+  <!-- arestas do grafo -->
+  <g stroke="#ffffff" stroke-width="26" fill="none" opacity="0.85">
+    <path d="M 330 380 C 430 380 430 300 520 300"/>
+    <path d="M 330 380 C 430 380 430 560 520 560"/>
+    <path d="M 668 300 C 730 300 730 430 700 430"/>
+  </g>
+
+  <!-- nós -->
+  <g>
+    <rect x="200" y="330" width="130" height="100" rx="26" fill="#ffffff"/>
+    <path d="M 244 358 L 296 380 L 244 402 Z" fill="#0891b2"/>
+
+    <rect x="520" y="250" width="148" height="100" rx="26" fill="#ffffff" opacity="0.95"/>
+    <circle cx="560" cy="300" r="16" fill="#22d3ee"/>
+    <rect x="588" y="290" width="52" height="20" rx="10" fill="#a5f3fc"/>
+
+    <rect x="520" y="510" width="148" height="100" rx="26" fill="#ffffff" opacity="0.95"/>
+    <path d="M 560 540 L 585 585 L 535 585 Z" fill="#0891b2"/>
+    <rect x="600" y="550" width="44" height="20" rx="10" fill="#a5f3fc"/>
+
+    <!-- engrenagem simplificada -->
+    <g transform="translate(710 620)">
+      <circle cx="0" cy="0" r="86" fill="#ffffff"/>
+      <circle cx="0" cy="0" r="34" fill="#0891b2"/>
+      <g fill="#ffffff">
+        <rect x="-14" y="-118" width="28" height="44" rx="10"/>
+        <rect x="-14" y="74" width="28" height="44" rx="10"/>
+        <rect x="74" y="-14" width="44" height="28" rx="10"/>
+        <rect x="-118" y="-14" width="44" height="28" rx="10"/>
+        <rect x="-14" y="-118" width="28" height="44" rx="10" transform="rotate(45)"/>
+        <rect x="-14" y="74" width="28" height="44" rx="10" transform="rotate(45)"/>
+        <rect x="74" y="-14" width="44" height="28" rx="10" transform="rotate(45)"/>
+        <rect x="-118" y="-14" width="44" height="28" rx="10" transform="rotate(45)"/>
+      </g>
+      <circle cx="0" cy="0" r="86" fill="none"/>
+    </g>
+  </g>
+
+  <!-- easter egg da marca -->
+  <text x="360" y="900" font-family="Segoe Script, cursive" font-size="84"
+        fill="#ffffff" opacity="0.55" text-anchor="middle">Taylor</text>
+</svg>
