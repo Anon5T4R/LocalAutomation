@@ -305,14 +305,15 @@ mod tests {
 
     #[test]
     fn js_transform_recebe_input() {
+        // boa serializa número inteiro como inteiro (42, não 42.0).
         let out = run_js("input.a + 1", &serde_json::json!({ "a": 41 })).unwrap();
-        assert_eq!(out, serde_json::json!(42.0));
+        assert_eq!(out, serde_json::json!(42));
     }
 
     #[test]
     fn js_objeto_de_saida() {
         let out = run_js("({ dobro: input.n * 2 })", &serde_json::json!({ "n": 21 })).unwrap();
-        assert_eq!(out, serde_json::json!({ "dobro": 42.0 }));
+        assert_eq!(out, serde_json::json!({ "dobro": 42 }));
     }
 
     #[test]
