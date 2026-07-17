@@ -1,6 +1,6 @@
 [package]
 name = "localautomation"
-version = "0.4.1"
+version = "0.4.2"
 description = "LocalAutomation — automação de fluxos 100% local (n8n/Zapier offline)"
 authors = ["Taylor"]
 edition = "2021"
