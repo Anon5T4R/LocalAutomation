@@ -41,6 +41,27 @@ interface LogRow {
 
 const KINDS: NodeKind[] = Object.keys(NODE_FIELDS) as NodeKind[];
 
+interface RunRow {
+  ts: number;
+  ok: boolean;
+  error: string | null;
+  steps: number;
+}
+
+const HIST_KEY = "localautomation.history";
+const AUTO_KEY = "localautomation.autoMs";
+/** Opções de auto-execução (ms). 0 = desligado. */
+const AUTO_OPTIONS = [0, 30_000, 60_000, 300_000, 900_000];
+
+function loadHistory(): RunRow[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(HIST_KEY) ?? "[]");
+    return Array.isArray(v) ? v.slice(0, 40) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -50,7 +71,12 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [importedWarn, setImportedWarn] = useState(false);
+  const [history, setHistory] = useState<RunRow[]>(loadHistory);
+  const [autoMs, setAutoMs] = useState(() => Number(localStorage.getItem(AUTO_KEY)) || 0);
+  const [showHistory, setShowHistory] = useState(false);
   const runIdRef = useRef<number | null>(null);
+  const logsRef = useRef<LogRow[]>([]);
+  logsRef.current = logs;
   const setSettingsOpen = useUi((s) => s.setSettingsOpen);
   const pushToast = useUi((s) => s.pushToast);
 
@@ -141,6 +167,17 @@ export default function App() {
     const un3 = listen<backend.FlowDone>("flow-done", (e) => {
       if (runIdRef.current !== e.payload.runId) return;
       setRunning(false);
+      const rec: RunRow = {
+        ts: Date.now(),
+        ok: e.payload.ok,
+        error: e.payload.error ?? null,
+        steps: logsRef.current.length,
+      };
+      setHistory((h) => {
+        const next = [rec, ...h].slice(0, 40);
+        localStorage.setItem(HIST_KEY, JSON.stringify(next));
+        return next;
+      });
       if (e.payload.ok) pushToast("ok", t("logs.done"));
       else pushToast("error", t("logs.failed", { error: e.payload.error ?? "?" }));
     });
@@ -165,6 +202,33 @@ export default function App() {
       setRunning(false);
       pushToast("error", t("toast.runFailed", { error: String(e) }));
     }
+  };
+
+  // Auto-execução: enquanto o app está aberto, roda o fluxo a cada N ms (sem
+  // sobrepor uma execução em andamento). Gatilhos em background/bandeja = v0.4.
+  const autoRef = useRef<{ run: () => Promise<void>; running: boolean; hasTrigger: boolean }>({
+    run,
+    running,
+    hasTrigger: false,
+  });
+  autoRef.current = { run, running, hasTrigger: nodes.some((n) => n.data.kind === "trigger") };
+  useEffect(() => {
+    if (!autoMs || !backend.isTauri) return;
+    const id = setInterval(() => {
+      const s = autoRef.current;
+      if (s.hasTrigger && !s.running) void s.run();
+    }, autoMs);
+    return () => clearInterval(id);
+  }, [autoMs]);
+
+  const changeAuto = (ms: number) => {
+    localStorage.setItem(AUTO_KEY, String(ms));
+    setAutoMs(ms);
+  };
+
+  const clearHistory = () => {
+    localStorage.setItem(HIST_KEY, "[]");
+    setHistory([]);
   };
 
   const doSave = async (forcePick: boolean) => {
@@ -221,6 +285,16 @@ export default function App() {
           {fileName} {dirty && t("top.modified")}
         </span>
         <span className="toolbar-fill" />
+        <label className="auto-run" title={t("top.autoHint")}>
+          <span className="muted">{t("top.auto")}</span>
+          <select value={autoMs} onChange={(e) => changeAuto(Number(e.target.value))}>
+            {AUTO_OPTIONS.map((ms) => (
+              <option key={ms} value={ms}>
+                {ms === 0 ? t("top.autoOff") : ms < 60_000 ? `${ms / 1000}s` : `${ms / 60_000}min`}
+              </option>
+            ))}
+          </select>
+        </label>
         <button className="primary" disabled={running} onClick={() => void run()}>
           {running ? t("top.running") : t("top.run")}
         </button>
@@ -277,7 +351,32 @@ export default function App() {
               {t("logs.clear")}
             </button>
           )}
+          <span className="toolbar-fill" />
+          <button className="small-btn" onClick={() => setShowHistory((v) => !v)}>
+            {t("history.title")} ({history.length})
+          </button>
         </div>
+        {showHistory && (
+          <div className="history-panel">
+            <div className="history-head">
+              <span className="muted small">{t("history.subtitle")}</span>
+              {history.length > 0 && (
+                <button className="small-btn" onClick={clearHistory}>
+                  {t("logs.clear")}
+                </button>
+              )}
+            </div>
+            {history.length === 0 && <span className="muted small">{t("history.empty")}</span>}
+            {history.map((r, i) => (
+              <div key={i} className={`history-row ${r.ok ? "ok" : "error"}`}>
+                <span className={`hist-dot ${r.ok ? "ok" : "error"}`} />
+                <span className="hist-time">{new Date(r.ts).toLocaleString()}</span>
+                <span className="hist-steps muted">{t("history.steps", { n: r.steps })}</span>
+                <span className="hist-msg muted">{r.error ?? (r.ok ? t("history.ok") : "")}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="logs-body">
           {logs.length === 0 && <span className="muted">{t("logs.empty")}</span>}
           {logs.map((l, i) => {

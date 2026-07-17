@@ -414,3 +414,68 @@ textarea {
   background: var(--err-bg);
   border-color: var(--err-border);
 }
+
+/* ---------- v0.3: auto-run + histórico ---------- */
+.auto-run {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+}
+.auto-run select {
+  padding: 3px 6px;
+}
+.history-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 180px;
+  width: 400px;
+  max-width: 90vw;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px 12px;
+  z-index: 60;
+}
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12.5px;
+  border-top: 1px solid var(--border);
+}
+.hist-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.hist-dot.ok {
+  background: var(--accent);
+}
+.hist-dot.error {
+  background: var(--danger);
+}
+.hist-time {
+  white-space: nowrap;
+}
+.hist-steps {
+  white-space: nowrap;
+}
+.hist-msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

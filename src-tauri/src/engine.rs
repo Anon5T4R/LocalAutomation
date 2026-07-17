@@ -64,6 +64,40 @@ fn cfg_str(node: &FlowNode, key: &str) -> String {
         .to_string()
 }
 
+/// Substitui `{{ expr }}` no texto avaliando `expr` como JS sobre o `input`
+/// (ex.: `{{ input.json.nome }}`). Sem `{{}}` o texto passa intacto. String →
+/// literal; null → vazio; outros → JSON compacto.
+fn interpolate(template: &str, input: &Value) -> Result<String, String> {
+    if !template.contains("{{") {
+        return Ok(template.to_string());
+    }
+    let mut out = String::new();
+    let mut rest = template;
+    while let Some(start) = rest.find("{{") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("}}") else {
+            out.push_str(&rest[start..]); // abertura sem fechamento: literal
+            return Ok(out);
+        };
+        let expr = after[..end].trim();
+        let s = match run_js(expr, input)? {
+            Value::String(s) => s,
+            Value::Null => String::new(),
+            other => other.to_string(),
+        };
+        out.push_str(&s);
+        rest = &after[end + 2..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
+/// `cfg_str` + interpolação de `{{...}}` sobre o input.
+fn interp(node: &FlowNode, key: &str, input: &Value) -> Result<String, String> {
+    interpolate(&cfg_str(node, key), input)
+}
+
 fn preview(v: &Value) -> String {
     let s = v.to_string();
     if s.chars().count() > 300 {
@@ -100,7 +134,7 @@ fn run_node(node: &FlowNode, input: &Value) -> Result<Value, String> {
         }
         "http" => {
             let method = cfg_str(node, "method");
-            let url = cfg_str(node, "url");
+            let url = interp(node, "url", input)?;
             if url.is_empty() {
                 return Err("URL vazia".into());
             }
@@ -112,12 +146,13 @@ fn run_node(node: &FlowNode, input: &Value) -> Result<Value, String> {
             let m = reqwest::Method::from_bytes(method.to_uppercase().as_bytes())
                 .unwrap_or(reqwest::Method::GET);
             let mut req = client.request(m, &url);
-            for line in cfg_str(node, "headers").lines() {
+            let headers = interp(node, "headers", input)?;
+            for line in headers.lines() {
                 if let Some((k, v)) = line.split_once(':') {
                     req = req.header(k.trim(), v.trim());
                 }
             }
-            let body = cfg_str(node, "body");
+            let body = interp(node, "body", input)?;
             if !body.is_empty() {
                 req = req.body(body);
             }
@@ -128,7 +163,7 @@ fn run_node(node: &FlowNode, input: &Value) -> Result<Value, String> {
             Ok(serde_json::json!({ "status": status, "body": text, "json": json }))
         }
         "command" => {
-            let cmdline = cfg_str(node, "command");
+            let cmdline = interp(node, "command", input)?;
             if cmdline.trim().is_empty() {
                 return Err("comando vazio".into());
             }
@@ -145,16 +180,16 @@ fn run_node(node: &FlowNode, input: &Value) -> Result<Value, String> {
             }))
         }
         "readfile" => {
-            let path = cfg_str(node, "path");
+            let path = interp(node, "path", input)?;
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
             Ok(serde_json::json!({ "path": path, "text": text }))
         }
         "writefile" => {
-            let path = cfg_str(node, "path");
+            let path = interp(node, "path", input)?;
             if path.is_empty() {
                 return Err("caminho vazio".into());
             }
-            let content = cfg_str(node, "content");
+            let content = interp(node, "content", input)?;
             let text = if content.is_empty() {
                 match input {
                     Value::String(s) => s.clone(),
@@ -188,10 +223,10 @@ fn run_node(node: &FlowNode, input: &Value) -> Result<Value, String> {
         "notify" => {
             // Notificação da bandeja do SO (via `notify-rust`); passa o input.
             let title = {
-                let t = cfg_str(node, "title");
+                let t = interp(node, "title", input)?;
                 if t.is_empty() { "LocalAutomation".to_string() } else { t }
             };
-            let body = cfg_str(node, "message");
+            let body = interp(node, "message", input)?;
             let _ = notify_rust::Notification::new().summary(&title).body(&body).show();
             Ok(input.clone())
         }
@@ -337,6 +372,18 @@ mod tests {
         let n = node("c", "condition", &[("expr", "input.x > 10")]);
         assert_eq!(condition_port(&n, &serde_json::json!({ "x": 11 })).unwrap(), "true");
         assert_eq!(condition_port(&n, &serde_json::json!({ "x": 5 })).unwrap(), "false");
+    }
+
+    #[test]
+    fn interpolate_substitui_e_preserva() {
+        let inp = serde_json::json!({ "nome": "Ana", "n": 3, "json": { "id": 7 } });
+        assert_eq!(interpolate("Oi {{ input.nome }}!", &inp).unwrap(), "Oi Ana!");
+        assert_eq!(interpolate("id={{input.json.id}}", &inp).unwrap(), "id=7");
+        assert_eq!(interpolate("sem template", &inp).unwrap(), "sem template");
+        // abertura sem fechamento fica literal
+        assert_eq!(interpolate("a {{ b", &inp).unwrap(), "a {{ b");
+        // objeto vira JSON compacto
+        assert_eq!(interpolate("{{ input.json }}", &inp).unwrap(), "{\"id\":7}");
     }
 
     #[test]
