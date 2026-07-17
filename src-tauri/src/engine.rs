@@ -179,6 +179,22 @@ fn run_node(node: &FlowNode, input: &Value) -> Result<Value, String> {
             // A saída é o próprio input; a PORTA é decidida em run_flow.
             Ok(input.clone())
         }
+        "delay" => {
+            // Pausa o ramo por N ms (teto de 1 h pra não travar o executor).
+            let ms: u64 = cfg_str(node, "ms").trim().parse().unwrap_or(1000);
+            std::thread::sleep(std::time::Duration::from_millis(ms.min(3_600_000)));
+            Ok(input.clone())
+        }
+        "notify" => {
+            // Notificação da bandeja do SO (via `notify-rust`); passa o input.
+            let title = {
+                let t = cfg_str(node, "title");
+                if t.is_empty() { "LocalAutomation".to_string() } else { t }
+            };
+            let body = cfg_str(node, "message");
+            let _ = notify_rust::Notification::new().summary(&title).body(&body).show();
+            Ok(input.clone())
+        }
         other => Err(format!("tipo de nó desconhecido: {other}")),
     }
 }

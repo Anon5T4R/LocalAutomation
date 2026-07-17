@@ -33,6 +33,8 @@ const pt = {
   "node.writefile": "Escrever arquivo",
   "node.transform": "Transformar (JS)",
   "node.condition": "Condição (if)",
+  "node.delay": "Esperar",
+  "node.notify": "Notificar",
 
   // Campos
   "field.payload": "Payload inicial (JSON, opcional)",
@@ -45,6 +47,9 @@ const pt = {
   "field.content": "Conteúdo",
   "field.code": "Código JS — `input` é a entrada; a última expressão é a saída",
   "field.expr": "Expressão JS — verdadeiro segue por “true”",
+  "field.ms": "Esperar (milissegundos)",
+  "field.title": "Título",
+  "field.message": "Mensagem",
 
   // Painel de config
   "config.empty": "Selecione um nó pra configurar.",
@@ -108,6 +113,8 @@ const en: Record<MessageKey, string> = {
   "node.writefile": "Write file",
   "node.transform": "Transform (JS)",
   "node.condition": "Condition (if)",
+  "node.delay": "Wait",
+  "node.notify": "Notify",
 
   "field.payload": "Initial payload (JSON, optional)",
   "field.method": "Method",
@@ -119,6 +126,9 @@ const en: Record<MessageKey, string> = {
   "field.content": "Content",
   "field.code": "JS code — `input` is the input; the last expression is the output",
   "field.expr": "JS expression — truthy goes through “true”",
+  "field.ms": "Wait (milliseconds)",
+  "field.title": "Title",
+  "field.message": "Message",
 
   "config.empty": "Select a node to configure it.",
   "config.delete": "Delete node",
@@ -175,6 +185,8 @@ const es: Record<MessageKey, string> = {
   "node.writefile": "Escribir archivo",
   "node.transform": "Transformar (JS)",
   "node.condition": "Condición (if)",
+  "node.delay": "Esperar",
+  "node.notify": "Notificar",
 
   "field.payload": "Payload inicial (JSON, opcional)",
   "field.method": "Método",
@@ -186,6 +198,9 @@ const es: Record<MessageKey, string> = {
   "field.content": "Contenido",
   "field.code": "Código JS — `input` es la entrada; la última expresión es la salida",
   "field.expr": "Expresión JS — verdadero sigue por “true”",
+  "field.ms": "Esperar (milisegundos)",
+  "field.title": "Título",
+  "field.message": "Mensaje",
 
   "config.empty": "Selecciona un nodo para configurarlo.",
   "config.delete": "Eliminar nodo",

@@ -9,7 +9,8 @@ Automação de fluxos **100% local** da suíte Local — o n8n/Zapier offline: a
   seleção com painel de configuração por tipo
 - **Nós base:** Gatilho manual (payload JSON opcional) · Requisição HTTP ·
   Rodar comando (shell do SO) · Ler arquivo · Escrever arquivo ·
-  **Transformar (JS)** · **Condição (if)** com saídas true/false
+  **Transformar (JS)** · **Condição (if)** com saídas true/false ·
+  **Esperar** (delay em ms) · **Notificar** (notificação da bandeja do SO)
 - **Executar na hora** com **log por nó** (status, duração, preview da saída;
   nó colore no canvas: rodando/ok/erro) — erro num ramo não derruba os outros
 - **`.tflow`** = JSON do grafo: salvar/abrir (associação registrada);

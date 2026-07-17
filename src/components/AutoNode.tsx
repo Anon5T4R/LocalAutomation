@@ -10,6 +10,8 @@ const KIND_ICON: Record<string, string> = {
   writefile: "💾",
   transform: "ƒ",
   condition: "◇",
+  delay: "⏱",
+  notify: "🔔",
 };
 
 /** Estado da última execução, injetado no data pelo App (colore a borda). */

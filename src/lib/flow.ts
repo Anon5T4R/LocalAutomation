@@ -12,7 +12,9 @@ export type NodeKind =
   | "readfile"
   | "writefile"
   | "transform"
-  | "condition";
+  | "condition"
+  | "delay"
+  | "notify";
 
 export interface NodeData {
   kind: NodeKind;
@@ -93,6 +95,11 @@ export const NODE_FIELDS: Record<NodeKind, FieldDef[]> = {
   ],
   transform: [{ key: "code", multiline: true, mono: true, placeholder: "({ dobro: input.n * 2 })" }],
   condition: [{ key: "expr", mono: true, placeholder: "input.status === 200" }],
+  delay: [{ key: "ms", placeholder: "1000" }],
+  notify: [
+    { key: "title", placeholder: "LocalAutomation" },
+    { key: "message", multiline: true },
+  ],
 };
 
 /** Condição tem duas saídas nomeadas; os demais, uma saída anônima. */
