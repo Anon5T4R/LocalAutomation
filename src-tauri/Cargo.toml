@@ -1,6 +1,6 @@
 [package]
 name = "localautomation"
-version = "0.4.2"
+version = "0.5.0"
 description = "LocalAutomation — automação de fluxos 100% local (n8n/Zapier offline)"
 authors = ["Taylor"]
 edition = "2021"
@@ -30,6 +30,9 @@ boa_engine = "0.20"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "gzip"] }
 # Nó de notificação (bandeja do SO).
 notify-rust = "4"
+# Gatilho "quando um arquivo aparecer numa pasta": vigia nativa do SO
+# (ReadDirectoryChangesW no Windows) — o padrão pra file-watch em Rust.
+notify = { version = "6", default-features = false, features = ["macos_fsevent"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

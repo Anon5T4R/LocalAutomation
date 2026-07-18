@@ -1,5 +1,6 @@
 import { NODE_FIELDS, type FlowNode } from "../lib/flow";
 import { t, type MessageKey } from "../lib/i18n";
+import TriggerConfig from "./TriggerConfig";
 
 interface Props {
   node: FlowNode | null;
@@ -12,6 +13,20 @@ export default function ConfigPanel({ node, onChange, onDelete }: Props) {
   if (!node) {
     return <aside className="config-panel muted empty">{t("config.empty")}</aside>;
   }
+
+  // Gatilho tem UI própria (cards em linguagem de gente), não os campos crus.
+  if (node.data.kind === "trigger") {
+    return (
+      <aside className="config-panel">
+        <h3>{t("node.trigger")}</h3>
+        <TriggerConfig node={node} onChange={onChange} />
+        <button className="danger delete-btn" onClick={() => onDelete(node.id)}>
+          {t("config.delete")}
+        </button>
+      </aside>
+    );
+  }
+
   const fields = NODE_FIELDS[node.data.kind];
 
   return (

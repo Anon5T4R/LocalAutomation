@@ -33,3 +33,21 @@ export function writeFlow(path: string, content: string): Promise<void> {
 export function getStartupFile(): Promise<string | null> {
   return invoke("get_startup_file");
 }
+
+/** Evento emitido pela vigia quando um arquivo estabiliza numa pasta vigiada. */
+export interface WatchFile {
+  watchId: string;
+  path: string;
+  name: string;
+  folder: string;
+}
+
+/** Liga a vigia de uma pasta (id = id do nó-gatilho). Emite `watch-file`. */
+export function startWatch(id: string, folder: string, fileTypes: string[]): Promise<void> {
+  return invoke("start_watch", { id, folder, fileTypes });
+}
+
+/** Desliga a vigia daquele nó (silencioso se não existir). */
+export function stopWatch(id: string): Promise<void> {
+  return invoke("stop_watch", { id });
+}

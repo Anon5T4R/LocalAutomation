@@ -102,6 +102,58 @@ export const NODE_FIELDS: Record<NodeKind, FieldDef[]> = {
   ],
 };
 
+/**
+ * GATILHOS EM LINGUAGEM DE GENTE.
+ *
+ * PORQUÊ: antes o "gatilho" era um nó com um campo cru de payload JSON e a
+ * única forma de rodar era clicar Executar (ou um "Auto" que repolava o fluxo
+ * inteiro a cada N ms). Zero leigo entende isso. Agora o mesmo nó `trigger`
+ * ganha um campo `when` que escolhe, em FRASE, quando o fluxo deve rodar. A
+ * expressão técnica (payload, intervalo) fica escondida atrás da frase; o modo
+ * avançado continua lá pra quem quiser.
+ */
+export type TriggerWhen = "folder" | "interval" | "schedule" | "startup" | "manual";
+
+/** Ordem de descoberta: o mais concreto (pasta) primeiro; manual por último. */
+export const TRIGGER_TYPES: { when: TriggerWhen; icon: string }[] = [
+  { when: "folder", icon: "📂" },
+  { when: "interval", icon: "🔁" },
+  { when: "schedule", icon: "⏰" },
+  { when: "startup", icon: "💻" },
+  { when: "manual", icon: "▶" },
+];
+
+/** Lê o `when` do config, caindo em "manual" se ausente/inválido (compat). */
+export function triggerWhen(config: Record<string, string>): TriggerWhen {
+  const w = config.when;
+  return w === "folder" || w === "interval" || w === "schedule" || w === "startup"
+    ? w
+    : "manual";
+}
+
+/** Gatilho que roda sozinho em segundo plano? (precisa ser "Ativado"). */
+export function isBackgroundTrigger(w: TriggerWhen): boolean {
+  return w !== "manual";
+}
+
+/** Último trecho de um caminho (nome da pasta/arquivo), pra frase amigável. */
+export function baseName(path: string): string {
+  const parts = path.split(/[\\/]+/).filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
+/**
+ * Um agendamento diário já disparou hoje? Decisão pura (recebe o "agora") pra
+ * ser testável sem relógio real. `time` = "HH:MM". Dispara quando o minuto
+ * atual bate e ainda não disparou nesse dia.
+ */
+export function scheduleDue(now: Date, time: string, lastFiredDay: string): boolean {
+  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes(),
+  ).padStart(2, "0")}`;
+  return hhmm === time && lastFiredDay !== now.toDateString();
+}
+
 /** Condição tem duas saídas nomeadas; os demais, uma saída anônima. */
 export function outputPorts(kind: NodeKind): (string | null)[] {
   return kind === "condition" ? ["true", "false"] : [null];

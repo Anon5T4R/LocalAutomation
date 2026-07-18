@@ -19,13 +19,18 @@ import SettingsModal from "./components/SettingsModal";
 import Toasts from "./components/Toasts";
 import * as backend from "./lib/backend";
 import {
+  baseName,
   fromTflow,
+  isBackgroundTrigger,
   newNodeId,
+  scheduleDue,
   toTflow,
+  triggerWhen,
   NODE_FIELDS,
   type FlowNode,
   type NodeKind,
 } from "./lib/flow";
+import { buildTemplate, TEMPLATE_IDS } from "./lib/templates";
 import { t, type MessageKey } from "./lib/i18n";
 import { useUi } from "./state/ui";
 
@@ -74,6 +79,7 @@ export default function App() {
   const [history, setHistory] = useState<RunRow[]>(loadHistory);
   const [autoMs, setAutoMs] = useState(() => Number(localStorage.getItem(AUTO_KEY)) || 0);
   const [showHistory, setShowHistory] = useState(false);
+  const [armed, setArmed] = useState(false);
   const runIdRef = useRef<number | null>(null);
   const logsRef = useRef<LogRow[]>([]);
   logsRef.current = logs;
@@ -131,6 +137,7 @@ export default function App() {
         setFilePath(path);
         setDirty(false);
         setLogs([]);
+        setArmed(false); // fluxo novo: desativa qualquer gatilho ligado
         setImportedWarn(true); // Decisão nº 8: avisar o que o fluxo executa
       } catch (e) {
         pushToast("error", t("toast.openFailed", { error: String(e) }));
@@ -186,9 +193,13 @@ export default function App() {
     };
   }, [loadFrom, pushToast, setNodes]);
 
-  const run = async () => {
+  // Roda o fluxo. `payload` (opcional) é injetado como entrada do gatilho — é
+  // por aqui que o arquivo detectado pela vigia chega ao fluxo (ex.:
+  // `{{ input.path }}` nos nós seguintes). Sem payload = execução manual comum.
+  const runWith = async (payload?: Record<string, unknown>) => {
     if (running) return;
-    if (!nodes.some((n) => n.data.kind === "trigger")) {
+    const triggerNode = nodes.find((n) => n.data.kind === "trigger");
+    if (!triggerNode) {
       pushToast("error", t("toast.needTrigger"));
       return;
     }
@@ -197,16 +208,22 @@ export default function App() {
     setNodes((ns) => ns.map((n) => ({ ...n, data: { ...n.data, status: undefined } })));
     setRunning(true);
     try {
-      runIdRef.current = await backend.runFlow(JSON.stringify(toTflow(nodes, edges)));
+      const tflow = toTflow(nodes, edges);
+      if (payload) {
+        const tn = tflow.nodes.find((n) => n.id === triggerNode.id);
+        if (tn) tn.config = { ...tn.config, payload: JSON.stringify(payload) };
+      }
+      runIdRef.current = await backend.runFlow(JSON.stringify(tflow));
     } catch (e) {
       setRunning(false);
       pushToast("error", t("toast.runFailed", { error: String(e) }));
     }
   };
+  const run = () => void runWith();
 
   // Auto-execução: enquanto o app está aberto, roda o fluxo a cada N ms (sem
   // sobrepor uma execução em andamento). Gatilhos em background/bandeja = v0.4.
-  const autoRef = useRef<{ run: () => Promise<void>; running: boolean; hasTrigger: boolean }>({
+  const autoRef = useRef<{ run: () => void; running: boolean; hasTrigger: boolean }>({
     run,
     running,
     hasTrigger: false,
@@ -216,10 +233,101 @@ export default function App() {
     if (!autoMs || !backend.isTauri) return;
     const id = setInterval(() => {
       const s = autoRef.current;
-      if (s.hasTrigger && !s.running) void s.run();
+      if (s.hasTrigger && !s.running) s.run();
     }, autoMs);
     return () => clearInterval(id);
   }, [autoMs]);
+
+  // Ref pra o efeito de "gatilho ativado" sempre chamar a versão mais nova de
+  // runWith (senão o setInterval/listener rodaria um fluxo velho).
+  const runWithRef = useRef(runWith);
+  runWithRef.current = runWith;
+
+  // Gatilho selecionado e se ele roda sozinho (pasta/intervalo/agenda/abertura).
+  const triggerNode = nodes.find((n) => n.data.kind === "trigger") ?? null;
+  const triggerWhenVal = triggerNode ? triggerWhen(triggerNode.data.config) : null;
+  const isBg = triggerWhenVal ? isBackgroundTrigger(triggerWhenVal) : false;
+  // Assinatura: muda quando troca o gatilho ou sua config relevante → re-arma.
+  const trigSig = triggerNode
+    ? JSON.stringify({
+        id: triggerNode.id,
+        when: triggerWhenVal,
+        folder: triggerNode.data.config.folder ?? "",
+        fileTypes: triggerNode.data.config.fileTypes ?? "",
+        minutes: triggerNode.data.config.minutes ?? "",
+        time: triggerNode.data.config.time ?? "",
+      })
+    : "";
+
+  // ATIVAR o gatilho: liga a vigia de pasta (Rust) ou os timers de
+  // intervalo/agenda/abertura, e roda o fluxo quando o gatilho dispara. Tudo
+  // enquanto o app está aberto (gatilho de bandeja/daemon = próximo passo).
+  useEffect(() => {
+    if (!armed || !backend.isTauri) return;
+    if (!triggerNode || !isBg) {
+      setArmed(false);
+      return;
+    }
+    const id = triggerNode.id;
+    const cfg = triggerNode.data.config;
+    const when = triggerWhen(cfg);
+    const cleanups: Array<() => void> = [];
+
+    if (when === "folder") {
+      const folder = cfg.folder ?? "";
+      if (!folder) {
+        pushToast("error", t("toast.needFolder"));
+        setArmed(false);
+        return;
+      }
+      const types = (cfg.fileTypes ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      backend
+        .startWatch(id, folder, types)
+        .then(() => pushToast("ok", t("toast.watchStarted", { folder: baseName(folder) })))
+        .catch((e) => {
+          pushToast("error", t("toast.armFailed", { error: String(e) }));
+          setArmed(false);
+        });
+      const un = listen<backend.WatchFile>("watch-file", (e) => {
+        if (e.payload.watchId !== id) return;
+        pushToast("ok", t("toast.fired", { name: e.payload.name }));
+        void runWithRef.current({
+          path: e.payload.path,
+          name: e.payload.name,
+          folder: e.payload.folder,
+        });
+      });
+      cleanups.push(() => {
+        void un.then((f) => f());
+        void backend.stopWatch(id);
+      });
+    } else if (when === "interval") {
+      const mins = Math.max(1, Number(cfg.minutes) || 5);
+      const h = setInterval(() => void runWithRef.current(), mins * 60_000);
+      cleanups.push(() => clearInterval(h));
+    } else if (when === "schedule") {
+      const time = cfg.time || "09:00";
+      let lastDay = "";
+      // Checa o relógio a cada 20 s; dispara uma vez quando bate o horário.
+      const h = setInterval(() => {
+        const now = new Date();
+        if (scheduleDue(now, time, lastDay)) {
+          lastDay = now.toDateString();
+          void runWithRef.current();
+        }
+      }, 20_000);
+      cleanups.push(() => clearInterval(h));
+    } else if (when === "startup") {
+      // "Quando eu abrir o computador": aqui, quando o app abre e você ativa.
+      void runWithRef.current();
+    }
+
+    return () => cleanups.forEach((c) => c());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [armed, trigSig]);
 
   const changeAuto = (ms: number) => {
     localStorage.setItem(AUTO_KEY, String(ms));
@@ -268,7 +376,24 @@ export default function App() {
     setFilePath(null);
     setDirty(false);
     setLogs([]);
+    setArmed(false);
     setImportedWarn(false);
+  };
+
+  // Modelo pronto: substitui o fluxo atual e seleciona o gatilho pra o leigo já
+  // escolher a pasta. Marca como não salvo (é um rascunho).
+  const loadTemplate = (id: (typeof TEMPLATE_IDS)[number]) => {
+    if (dirty && !window.confirm(t("confirm.discard"))) return;
+    const built = buildTemplate(id);
+    setNodes(built.nodes);
+    setEdges(built.edges);
+    setFilePath(null);
+    setDirty(true);
+    setLogs([]);
+    setArmed(false);
+    setImportedWarn(false);
+    setSelectedId(built.nodes[0].id);
+    pushToast("ok", t("tpl.loaded"));
   };
 
   const selected = nodes.find((n) => n.id === selectedId) ?? null;
@@ -295,7 +420,16 @@ export default function App() {
             ))}
           </select>
         </label>
-        <button className="primary" disabled={running} onClick={() => void run()}>
+        {isBg && (
+          <button
+            className={`arm-btn ${armed ? "armed" : ""}`}
+            title={t("top.armHint")}
+            onClick={() => setArmed((a) => !a)}
+          >
+            {armed ? t("top.armed") : t("top.arm")}
+          </button>
+        )}
+        <button className="primary" disabled={running} onClick={run}>
           {running ? t("top.running") : t("top.run")}
         </button>
         <button title={t("top.settingsTitle")} onClick={() => setSettingsOpen(true)}>
@@ -307,6 +441,12 @@ export default function App() {
 
       <div className="main">
         <aside className="palette">
+          <div className="palette-title muted">{t("tpl.title")}</div>
+          {TEMPLATE_IDS.map((id) => (
+            <button key={id} className="tpl-btn" onClick={() => loadTemplate(id)}>
+              📂 {t(`tpl.${id}` as MessageKey)}
+            </button>
+          ))}
           <div className="palette-title muted">{t("palette.title")}</div>
           {KINDS.map((k) => (
             <button key={k} onClick={() => addNode(k)}>

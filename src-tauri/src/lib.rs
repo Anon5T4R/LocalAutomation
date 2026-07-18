@@ -1,11 +1,82 @@
 mod engine;
+mod watch;
 
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{AppHandle, Emitter, Manager};
 
 static NEXT_RUN: AtomicU64 = AtomicU64::new(1);
+
+/// Vigias de pasta ativas, por id do nó-gatilho. PORQUÊ global: a vigia vive
+/// numa thread e precisa sobreviver às chamadas de comando; guardar o
+/// "sinalizador de parada" aqui deixa `stop_watch` desligar a thread certa.
+fn watchers() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
+    static W: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
+    W.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Liga a vigia de uma pasta. Idempotente por `id`: religar troca a config sem
+/// vazar a thread antiga. Emite `watch-file` a cada arquivo estabilizado.
+#[tauri::command(async)]
+fn start_watch(
+    app: AppHandle,
+    id: String,
+    folder: String,
+    file_types: Vec<String>,
+) -> Result<(), String> {
+    let dir = Path::new(&folder);
+    if !dir.is_dir() {
+        // Erro de gente: o leigo escolheu (ou perdeu) uma pasta que não existe.
+        return Err(format!("a pasta não existe: {folder}"));
+    }
+    stop_watch(id.clone()); // religar: mata a anterior antes
+
+    let stop = Arc::new(AtomicBool::new(false));
+    watchers().lock().unwrap().insert(id.clone(), stop.clone());
+
+    let cfg = watch::WatchConfig {
+        folder: dir.to_path_buf(),
+        file_types: file_types
+            .into_iter()
+            .map(|t| t.trim().trim_start_matches('.').to_lowercase())
+            .filter(|t| !t.is_empty())
+            .collect(),
+        // Defaults de gente: 1,5 s parado = pronto; teto de 10 min por arquivo
+        // (cópia de vídeo grande é lenta, mas não eterna).
+        debounce_ms: 1_500,
+        timeout_ms: 600_000,
+        poll_ms: 400,
+    };
+
+    std::thread::spawn(move || {
+        let emit = move |hit: watch::FileHit| {
+            let _ = app.emit(
+                "watch-file",
+                serde_json::json!({
+                    "watchId": id,
+                    "path": hit.path,
+                    "name": hit.name,
+                    "folder": hit.folder,
+                }),
+            );
+        };
+        if let Err(e) = watch::run_watch(cfg, stop, emit) {
+            eprintln!("vigia falhou: {e}");
+        }
+    });
+    Ok(())
+}
+
+/// Desliga a vigia daquele nó (se houver). Sem erro se não existir.
+#[tauri::command(async)]
+fn stop_watch(id: String) {
+    if let Some(stop) = watchers().lock().unwrap().remove(&id) {
+        stop.store(true, Ordering::Relaxed);
+    }
+}
 
 /// Executa o fluxo (JSON do grafo) numa thread; logs por evento
 /// `flow-log`/`flow-done`. Devolve o run_id na hora.
@@ -66,6 +137,8 @@ pub fn run() {
             read_flow,
             write_flow,
             get_startup_file,
+            start_watch,
+            stop_watch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -593,3 +593,129 @@ textarea {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------- v0.5: gatilhos pra leigos ---------- */
+/* Ativar gatilho: quando ligado, ganha a cor de "ao vivo" (ok). */
+.arm-btn.armed {
+  border-color: var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--ok) 14%, var(--panel));
+}
+/* Modelos prontos: destaque leve pra convidar o leigo a começar por aqui. */
+.tpl-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Painel do gatilho em linguagem de gente */
+.trigger-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.trig-prompt {
+  margin: 0;
+  font-weight: 600;
+}
+.trig-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.trig-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+.trig-card.selected {
+  border-color: var(--accent);
+  background: var(--sel-bg);
+}
+.trig-card-icon {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.trig-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.trig-card-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.trig-card-example {
+  font-size: 11.5px;
+}
+.trig-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.trig-pick-folder {
+  align-self: flex-start;
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.trig-folder-chosen {
+  margin: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+.trig-folder-chosen.muted {
+  font-weight: 400;
+}
+.trig-folder-path {
+  margin: 0;
+  font-size: 11px;
+  word-break: break-all;
+}
+.field-hint {
+  font-size: 11px;
+}
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.field.inline span {
+  font-size: 13px;
+  color: var(--text);
+}
+.trig-num {
+  width: 64px;
+}
+.trig-note,
+.trig-bg-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.trig-bg-note {
+  padding: 7px 10px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+}
+.trig-advanced-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 2px 0;
+  font-size: 12.5px;
+}
+.trig-advanced-toggle:hover {
+  background: none;
+  color: var(--text);
+}

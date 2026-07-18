@@ -1,5 +1,5 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { hasInput, outputPorts, type FlowNode } from "../lib/flow";
+import { baseName, hasInput, outputPorts, triggerWhen, type FlowNode } from "../lib/flow";
 import { t, type MessageKey } from "../lib/i18n";
 
 const KIND_ICON: Record<string, string> = {
@@ -17,18 +17,35 @@ const KIND_ICON: Record<string, string> = {
 /** Estado da última execução, injetado no data pelo App (colore a borda). */
 export type RunStatus = "running" | "ok" | "error" | undefined;
 
+/** Frase amigável do gatilho pro resumo do card (ex.: "Quando cair em Downloads"). */
+function triggerSummary(config: Record<string, string>): string {
+  const when = triggerWhen(config);
+  if (when === "folder") {
+    return config.folder
+      ? t("trig.summary.folder", { folder: baseName(config.folder) })
+      : t("trig.summary.folderEmpty");
+  }
+  if (when === "interval") return t("trig.summary.interval", { n: config.minutes || "5" });
+  if (when === "schedule") return t("trig.summary.schedule", { time: config.time || "09:00" });
+  if (when === "startup") return t("trig.summary.startup");
+  return t("trig.summary.manual");
+}
+
 /** Nó do canvas: ícone + nome do tipo + resumo da config + handles. */
 export default function AutoNode({ data, selected }: NodeProps<FlowNode>) {
   const kind = data.kind;
   const ports = outputPorts(kind);
   const status = data.status as RunStatus;
 
+  // Gatilho: mostra a FRASE de quando roda (não jargão) direto no card.
   const summary =
-    data.config.url ||
-    data.config.command ||
-    data.config.path ||
-    data.config.expr ||
-    (data.config.code ? "ƒ(x)" : "");
+    kind === "trigger"
+      ? triggerSummary(data.config)
+      : data.config.url ||
+        data.config.command ||
+        data.config.path ||
+        data.config.expr ||
+        (data.config.code ? "ƒ(x)" : "");
 
   return (
     <div className={`auto-node ${selected ? "selected" : ""} ${status ?? ""}`}>
