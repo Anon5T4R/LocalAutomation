@@ -18,6 +18,13 @@ fn watchers() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
     W.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Trava o mapa de vigias recuperando de poison: se alguma thread panicou com
+/// a trava, perder os sinalizadores de parada deixaria as vigias órfãs pra
+/// sempre — pior do que seguir com o mapa como está.
+fn watchers_lock() -> std::sync::MutexGuard<'static, HashMap<String, Arc<AtomicBool>>> {
+    watchers().lock().unwrap_or_else(|p| p.into_inner())
+}
+
 /// Liga a vigia de uma pasta. Idempotente por `id`: religar troca a config sem
 /// vazar a thread antiga. Emite `watch-file` a cada arquivo estabilizado.
 #[tauri::command(async)]
@@ -35,7 +42,7 @@ fn start_watch(
     stop_watch(id.clone()); // religar: mata a anterior antes
 
     let stop = Arc::new(AtomicBool::new(false));
-    watchers().lock().unwrap().insert(id.clone(), stop.clone());
+    watchers_lock().insert(id.clone(), stop.clone());
 
     let cfg = watch::WatchConfig {
         folder: dir.to_path_buf(),
@@ -73,7 +80,7 @@ fn start_watch(
 /// Desliga a vigia daquele nó (se houver). Sem erro se não existir.
 #[tauri::command(async)]
 fn stop_watch(id: String) {
-    if let Some(stop) = watchers().lock().unwrap().remove(&id) {
+    if let Some(stop) = watchers_lock().remove(&id) {
         stop.store(true, Ordering::Relaxed);
     }
 }
@@ -141,5 +148,6 @@ pub fn run() {
             stop_watch,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        // Falha aqui é fatal por definição: sem o runtime Tauri não há app.
+        .expect("erro ao iniciar a aplicação Tauri");
 }
