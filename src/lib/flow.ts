@@ -142,16 +142,40 @@ export function baseName(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+/** "HH:MM" local, zero-preenchido (compara direto como string). */
+function hhmm(now: Date): string {
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
 /**
- * Um agendamento diário já disparou hoje? Decisão pura (recebe o "agora") pra
- * ser testável sem relógio real. `time` = "HH:MM". Dispara quando o minuto
- * atual bate e ainda não disparou nesse dia.
+ * Um agendamento diário já está devendo? Decisão pura (recebe o "agora") pra
+ * ser testável sem relógio real. `time` = "HH:MM".
+ *
+ * ATENÇÃO ao `>=`: até a v0.6.0 isto era `===`, um casamento de minuto EXATO, e
+ * era um jeito silencioso de nunca disparar. Com a janela escondida o Chromium
+ * (WebView2) estrangula os timers da página — depois de ~5 min ocultos, pra uma
+ * vez por minuto. Uma checagem que só aceita o minuto cravado pode pular o
+ * minuto-alvo inteiro e o agendamento das 9h simplesmente NÃO ACONTECE aquele
+ * dia, sem erro nenhum. Com `>=` o tique atrasado ainda cobra o horário.
+ *
+ * O dedo-duro do "já disparou hoje" continua sendo `lastFiredDay` — quem arma o
+ * gatilho depois do horário usa `initialFiredDay` pra não disparar retroativo.
  */
 export function scheduleDue(now: Date, time: string, lastFiredDay: string): boolean {
-  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(
-    now.getMinutes(),
-  ).padStart(2, "0")}`;
-  return hhmm === time && lastFiredDay !== now.toDateString();
+  return hhmm(now) >= time && lastFiredDay !== now.toDateString();
+}
+
+/**
+ * Valor inicial de `lastFiredDay` ao ARMAR o gatilho: se o horário já passou
+ * hoje, hoje conta como "já disparado".
+ *
+ * Sem isto o `>=` acima dispararia na hora em que o usuário armasse — armar às
+ * 14h um agendamento das 9h rodaria o fluxo imediatamente, que é exatamente o
+ * susto que ninguém quer. A recuperação de tique perdido vale pra frente, não
+ * pra trás.
+ */
+export function initialFiredDay(now: Date, time: string): string {
+  return hhmm(now) >= time ? now.toDateString() : "";
 }
 
 /** Condição tem duas saídas nomeadas; os demais, uma saída anônima. */

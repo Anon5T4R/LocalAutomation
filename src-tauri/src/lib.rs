@@ -1,6 +1,7 @@
 mod backup;
 mod engine;
 mod secrets;
+mod tray;
 mod watch;
 
 use std::collections::HashMap;
@@ -165,6 +166,43 @@ fn check_backup(source: String, dest: String, mode: String) -> Result<(), String
     .map(|_| ())
 }
 
+// --- Batida de relógio pros gatilhos de tempo ---
+//
+// PORQUÊ EM RUST: até a v0.6.0 os gatilhos "a cada N minutos" e "todo dia às
+// HH:MM" eram `setInterval` no frontend. Isso funciona com a janela aberta e
+// falha calado com ela escondida: o Chromium (WebView2) estrangula os timers de
+// página oculta — depois de ~5 minutos, pra uma vez por minuto. Ou seja, o
+// recurso que a bandeja acabou de viabilizar (rodar de janela fechada) seria
+// justamente o que quebraria o agendamento.
+//
+// Aqui a batida vem de uma thread do SO, que nenhum navegador estrangula, e
+// chega no front como EVENTO (não timer). O front só decide e dispara — e a
+// decisão é tolerante a batida atrasada (ver `scheduleDue` no flow.ts).
+
+/// Há gatilho armado? O front avisa ao armar/desarmar. É o que faz o X
+/// minimizar em vez de matar o agendamento.
+static ARMED: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command(async)]
+fn set_armed(armed: bool) {
+    ARMED.store(armed, Ordering::Relaxed);
+}
+
+/// 20 s: mesma cadência de antes, agora imune a estrangulamento. O custo é um
+/// evento a cada 20 s, que é ruído perto de qualquer nó do fluxo.
+const TICK_MS: u64 = 20_000;
+
+fn spawn_ticker(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(TICK_MS));
+        // Só emite com gatilho armado: sem isso, todo app aberto ficaria
+        // acordando o webview de 20 em 20 s à toa.
+        if ARMED.load(Ordering::Relaxed) {
+            let _ = app.emit("bg-tick", ());
+        }
+    });
+}
+
 /// Arquivo `.tflow` passado no launch (associação), se houver.
 #[tauri::command(async)]
 fn get_startup_file() -> Option<String> {
@@ -180,19 +218,41 @@ pub fn run() {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.set_focus();
-            }
-            if let Some(f) = args.into_iter().skip(1).find(|a| a.to_lowercase().ends_with(".tflow")) {
-                let _ = app.emit("open-flow", f);
-            }
-        }));
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+                // 2º launch com "--hidden" é o logon batendo num app já vivo na
+                // bandeja: não estoura a janela na cara.
+                if !args.iter().any(|a| a == "--hidden") {
+                    tray::open_main(app);
+                }
+                if let Some(f) =
+                    args.into_iter().skip(1).find(|a| a.to_lowercase().ends_with(".tflow"))
+                {
+                    let _ = app.emit("open-flow", f);
+                }
+            }))
+            // Autostart opt-in: sobe no logon direto na bandeja, que é o que
+            // faz um gatilho diário valer alguma coisa depois de reiniciar.
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                Some(vec!["--hidden"]),
+            ));
     }
 
     builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tray::init_state(&handle);
+            tray::setup(&handle, || ARMED.load(Ordering::Relaxed))?;
+            tray::hide_if_launched_hidden(&handle);
+            spawn_ticker(handle.clone());
+            // Reimpõe o autostart conforme a intenção guardada. Fora da thread
+            // principal: mexe no registro e não deve segurar a abertura.
+            std::thread::spawn(move || tray::reconcile(&handle));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             run_flow,
             read_flow,
@@ -204,6 +264,12 @@ pub fn run() {
             set_secret,
             delete_secret,
             check_backup,
+            set_armed,
+            tray::autostart_get,
+            tray::autostart_set,
+            tray::close_to_tray_get,
+            tray::close_to_tray_set,
+            tray::tray_labels_set,
         ])
         .run(tauri::generate_context!())
         // Falha aqui é fatal por definição: sem o runtime Tauri não há app.

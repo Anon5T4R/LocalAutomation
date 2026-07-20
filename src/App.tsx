@@ -21,6 +21,7 @@ import * as backend from "./lib/backend";
 import {
   baseName,
   fromTflow,
+  initialFiredDay,
   isBackgroundTrigger,
   newNodeId,
   scheduleDue,
@@ -238,8 +239,24 @@ export default function App() {
     return () => clearInterval(id);
   }, [autoMs]);
 
+  // O backend precisa saber que há gatilho armado por dois motivos: só então
+  // ele bate o relógio (`bg-tick`), e é isso que faz o X minimizar pra bandeja
+  // em vez de matar o agendamento.
+  useEffect(() => {
+    if (!backend.isTauri) return;
+    void backend.setArmed(armed).catch(() => {});
+  }, [armed]);
+
+  // O menu da bandeja nasce em Rust, antes do webview, então não sabe o idioma.
+  // O App remonta na troca de idioma (`key={locale}` no main.tsx), então este
+  // efeito roda de novo e a bandeja acompanha as Configurações.
+  useEffect(() => {
+    if (!backend.isTauri) return;
+    void backend.trayLabelsSet(t("tray.show"), t("tray.quit")).catch(() => {});
+  }, []);
+
   // Ref pra o efeito de "gatilho ativado" sempre chamar a versão mais nova de
-  // runWith (senão o setInterval/listener rodaria um fluxo velho).
+  // runWith (senão o listener rodaria um fluxo velho).
   const runWithRef = useRef(runWith);
   runWithRef.current = runWith;
 
@@ -305,21 +322,35 @@ export default function App() {
         void backend.stopWatch(id);
       });
     } else if (when === "interval") {
+      // A batida vem do Rust (`bg-tick`), não de setInterval: com a janela
+      // escondida o WebView2 estrangula timer de página, e o gatilho que só
+      // vale de janela fechada seria justamente o que pararia de funcionar.
+      // Evento de IPC não passa por esse estrangulamento.
       const mins = Math.max(1, Number(cfg.minutes) || 5);
-      const h = setInterval(() => void runWithRef.current(), mins * 60_000);
-      cleanups.push(() => clearInterval(h));
+      let nextDue = Date.now() + mins * 60_000;
+      const un = listen("bg-tick", () => {
+        // `>=` e não "no instante certo": batida atrasada ainda cobra o
+        // vencimento, e o próximo vencimento é contado a partir de AGORA (não
+        // acumula uma fila de execuções atrasadas).
+        if (Date.now() >= nextDue) {
+          nextDue = Date.now() + mins * 60_000;
+          void runWithRef.current();
+        }
+      });
+      cleanups.push(() => void un.then((f) => f()));
     } else if (when === "schedule") {
       const time = cfg.time || "09:00";
-      let lastDay = "";
-      // Checa o relógio a cada 20 s; dispara uma vez quando bate o horário.
-      const h = setInterval(() => {
+      // Armar depois do horário de hoje NÃO dispara retroativo (ver
+      // initialFiredDay); a recuperação de batida perdida vale só pra frente.
+      let lastDay = initialFiredDay(new Date(), time);
+      const un = listen("bg-tick", () => {
         const now = new Date();
         if (scheduleDue(now, time, lastDay)) {
           lastDay = now.toDateString();
           void runWithRef.current();
         }
-      }, 20_000);
-      cleanups.push(() => clearInterval(h));
+      });
+      cleanups.push(() => void un.then((f) => f()));
     } else if (when === "startup") {
       // "Quando eu abrir o computador": aqui, quando o app abre e você ativa.
       void runWithRef.current();

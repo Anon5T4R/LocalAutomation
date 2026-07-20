@@ -4,6 +4,7 @@ import {
   fromTflow,
   isBackgroundTrigger,
   outputPorts,
+  initialFiredDay,
   scheduleDue,
   toTflow,
   triggerWhen,
@@ -81,8 +82,47 @@ describe("gatilhos pra leigos", () => {
     expect(scheduleDue(at9, "09:00", "")).toBe(true);
     // já disparou hoje → não repete
     expect(scheduleDue(at9, "09:00", at9.toDateString())).toBe(false);
-    // horário diferente → não dispara
+    // antes do horário → não dispara
     const at8 = new Date(2026, 6, 17, 8, 30, 0);
     expect(scheduleDue(at8, "09:00", "")).toBe(false);
+  });
+
+  it("scheduleDue cobra o horário mesmo se a batida atrasar", () => {
+    // O caso que motivou a mudança de `===` pra `>=`: com a janela escondida o
+    // WebView2 estrangula os timers da página, e uma batida pode cair DEPOIS do
+    // minuto-alvo. Com casamento exato, o agendamento das 9h simplesmente não
+    // acontecia naquele dia — sem erro nenhum.
+    const at9h02 = new Date(2026, 6, 17, 9, 2, 0);
+    expect(scheduleDue(at9h02, "09:00", "")).toBe(true);
+    // Batida MUITO atrasada (uma hora) ainda cobra.
+    const at10 = new Date(2026, 6, 17, 10, 0, 0);
+    expect(scheduleDue(at10, "09:00", "")).toBe(true);
+    // Mas só uma vez por dia.
+    expect(scheduleDue(at10, "09:00", at10.toDateString())).toBe(false);
+    // E o dia seguinte volta a valer.
+    const amanha = new Date(2026, 6, 18, 9, 0, 0);
+    expect(scheduleDue(amanha, "09:00", at10.toDateString())).toBe(true);
+  });
+
+  it("initialFiredDay impede o disparo retroativo ao armar", () => {
+    // Armar às 14h um agendamento das 9h NÃO pode rodar o fluxo na hora — o
+    // `>=` recupera batida perdida pra frente, não o passado.
+    const at14 = new Date(2026, 6, 17, 14, 0, 0);
+    const marcado = initialFiredDay(at14, "09:00");
+    expect(marcado).toBe(at14.toDateString());
+    expect(scheduleDue(at14, "09:00", marcado)).toBe(false);
+    // Já armar às 8h deixa o dia em aberto: as 9h ainda vão chegar.
+    const at8 = new Date(2026, 6, 17, 8, 0, 0);
+    expect(initialFiredDay(at8, "09:00")).toBe("");
+    expect(scheduleDue(new Date(2026, 6, 17, 9, 0, 0), "09:00", "")).toBe(true);
+  });
+
+  it("scheduleDue compara HH:MM com zero à esquerda (não como número)", () => {
+    // "9:05" > "10:00" se a comparação fosse ingênua; com zero-preenchimento a
+    // ordem de string é a ordem do relógio.
+    const at9h05 = new Date(2026, 6, 17, 9, 5, 0);
+    expect(scheduleDue(at9h05, "10:00", "")).toBe(false);
+    const at10 = new Date(2026, 6, 17, 10, 0, 0);
+    expect(scheduleDue(at10, "09:30", "")).toBe(true);
   });
 });

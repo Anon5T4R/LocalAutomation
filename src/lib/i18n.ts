@@ -148,6 +148,21 @@ const pt = {
   "settings.themePastelPink": "Rosa pastel",
   "settings.themePunkPrincess": "PunkPrincess",
   "settings.language": "Idioma",
+
+  // Segundo plano (bandeja/autostart)
+  "settings.background": "Segundo plano",
+  "settings.closeToTray": "Fechar minimiza pra bandeja",
+  "settings.closeToTrayHint":
+    "O X esconde a janela em vez de sair; o app segue na bandeja. Com um gatilho ativado o X SEMPRE minimiza, mesmo com esta opção desligada — um agendamento que morre porque você fechou a janela não seria agendamento.",
+  "settings.autostart": "Abrir com o sistema",
+  "settings.autostartHint":
+    "Sobe junto com o login, direto na bandeja (sem roubar a tela) — é o que faz um gatilho diário sobreviver a um reinício. A escolha fica guardada no app e é reimposta a cada boot: se o LocalAutomation mudar de pasta, o atalho de inicialização é reescrito sozinho.",
+  "settings.autostartDisabledByOs":
+    "A inicialização foi desligada pelo Gerenciador de Tarefas do Windows. Reative por lá, ou marque aqui de novo.",
+  "tray.show": "Mostrar/Ocultar",
+  "tray.quit": "Sair",
+  "toast.settingsFailed": "Não deu pra salvar a configuração: {error}",
+
   "settings.about":
     " — automação de fluxos 100% local (n8n/Zapier offline): monte grafos de nós (HTTP, comando, arquivos, JS, condição), execute na hora e salve como .tflow. Sem sandbox de propósito: os nós rodam com as SUAS permissões — revise fluxos de terceiros. Parte da suíte Local.",
 } as const;
@@ -279,6 +294,20 @@ const en: Record<MessageKey, string> = {
   "settings.themePastelPink": "Pastel pink",
   "settings.themePunkPrincess": "PunkPrincess",
   "settings.language": "Language",
+
+  "settings.background": "Background",
+  "settings.closeToTray": "Closing minimizes to the tray",
+  "settings.closeToTrayHint":
+    "The X hides the window instead of quitting; the app stays in the tray. With a trigger armed the X ALWAYS minimizes, even with this option off — a schedule that dies because you closed the window would not be a schedule.",
+  "settings.autostart": "Start with the system",
+  "settings.autostartHint":
+    "Starts at login, straight into the tray (without taking over the screen) — that is what lets a daily trigger survive a restart. The choice is stored in the app and reapplied on every boot: if LocalAutomation moves to another folder, the startup entry is rewritten by itself.",
+  "settings.autostartDisabledByOs":
+    "Startup was turned off in the Windows Task Manager. Re-enable it there, or tick this box again.",
+  "tray.show": "Show/Hide",
+  "tray.quit": "Quit",
+  "toast.settingsFailed": "Could not save the setting: {error}",
+
   "settings.about":
     " — 100% local flow automation (offline n8n/Zapier): build node graphs (HTTP, command, files, JS, condition), run instantly and save as .tflow. Deliberately unsandboxed: nodes run with YOUR permissions — review third-party flows. Part of the Local suite.",
 };
@@ -408,6 +437,20 @@ const es: Record<MessageKey, string> = {
   "settings.themePastelPink": "Rosa pastel",
   "settings.themePunkPrincess": "PunkPrincess",
   "settings.language": "Idioma",
+
+  "settings.background": "Segundo plano",
+  "settings.closeToTray": "Cerrar minimiza a la bandeja",
+  "settings.closeToTrayHint":
+    "La X oculta la ventana en vez de salir; la app sigue en la bandeja. Con un disparador activado la X SIEMPRE minimiza, incluso con esta opción desactivada — una programación que muere porque cerraste la ventana no sería una programación.",
+  "settings.autostart": "Abrir con el sistema",
+  "settings.autostartHint":
+    "Arranca junto con el inicio de sesión, directo a la bandeja (sin apropiarse de la pantalla) — es lo que permite que un disparador diario sobreviva a un reinicio. La elección se guarda en la app y se reimpone en cada arranque: si LocalAutomation cambia de carpeta, la entrada de inicio se reescribe sola.",
+  "settings.autostartDisabledByOs":
+    "El inicio automático fue desactivado desde el Administrador de tareas de Windows. Reactívalo allí, o vuelve a marcar esta casilla.",
+  "tray.show": "Mostrar/Ocultar",
+  "tray.quit": "Salir",
+  "toast.settingsFailed": "No se pudo guardar la configuración: {error}",
+
   "settings.about":
     " — automatización de flujos 100% local (n8n/Zapier offline): arma grafos de nodos (HTTP, comando, archivos, JS, condición), ejecútalos al instante y guárdalos como .tflow. Sin sandbox a propósito: los nodos corren con TUS permisos — revisa flujos de terceros. Parte de la suite Local.",
 };
