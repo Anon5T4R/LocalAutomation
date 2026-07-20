@@ -1,4 +1,6 @@
+mod backup;
 mod engine;
+mod secrets;
 mod watch;
 
 use std::collections::HashMap;
@@ -111,6 +113,58 @@ fn write_flow(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| format!("{path}: {e}"))
 }
 
+// --- Variáveis secretas no cofre do SO ---
+//
+// REPARE NO QUE NÃO EXISTE AQUI: não há comando `get_secret`. O frontend
+// escreve, apaga e pergunta "existe?", nunca lê. Quem lê é o motor, em Rust,
+// no instante de montar a URL/comando — e o valor sai redigido dos logs.
+// Um `get_secret` transformaria qualquer XSS no webview num vazamento total.
+
+fn config_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app.path().app_config_dir().map_err(|e| format!("pasta de config: {e}"))
+}
+
+#[tauri::command(async)]
+fn list_secrets(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let dir = config_dir(&app)?;
+    Ok(secrets::list_names(&dir)
+        .into_iter()
+        .map(|name| {
+            // `defined` separa "está no índice" de "está no cofre DESTE
+            // computador": o .tflow viaja entre máquinas, o segredo não.
+            let defined = secrets::exists(&name);
+            serde_json::json!({ "name": name, "defined": defined })
+        })
+        .collect())
+}
+
+#[tauri::command(async)]
+fn set_secret(app: AppHandle, name: String, value: String) -> Result<(), String> {
+    if value.is_empty() {
+        return Err("o valor não pode ser vazio".into());
+    }
+    secrets::set(&name, &value)?;
+    secrets::index_add(&config_dir(&app)?, &name)
+}
+
+#[tauri::command(async)]
+fn delete_secret(app: AppHandle, name: String) -> Result<(), String> {
+    secrets::delete(&name)?;
+    secrets::index_remove(&config_dir(&app)?, &name)
+}
+
+/// Checagem das travas do backup SEM executar — a UI usa pra avisar o usuário
+/// antes de ele agendar um espelho que seria recusado toda madrugada.
+#[tauri::command(async)]
+fn check_backup(source: String, dest: String, mode: String) -> Result<(), String> {
+    backup::check_paths(
+        Path::new(source.trim()),
+        Path::new(dest.trim()),
+        backup::BackupMode::parse(&mode),
+    )
+    .map(|_| ())
+}
+
 /// Arquivo `.tflow` passado no launch (associação), se houver.
 #[tauri::command(async)]
 fn get_startup_file() -> Option<String> {
@@ -146,6 +200,10 @@ pub fn run() {
             get_startup_file,
             start_watch,
             stop_watch,
+            list_secrets,
+            set_secret,
+            delete_secret,
+            check_backup,
         ])
         .run(tauri::generate_context!())
         // Falha aqui é fatal por definição: sem o runtime Tauri não há app.
