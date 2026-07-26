@@ -36,7 +36,8 @@
         "ext": ["tflow"],
         "name": "Fluxo LocalAutomation",
         "description": "Fluxo de automação (LocalAutomation)",
-        "role": "Editor"
+        "role": "Editor",
+        "mimeType": "application/x-taylor-tflow"
       }
     ],
     "icon": [
