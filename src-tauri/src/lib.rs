@@ -16,6 +16,7 @@ static NEXT_RUN: AtomicU64 = AtomicU64::new(1);
 /// Vigias de pasta ativas, por id do nó-gatilho. PORQUÊ global: a vigia vive
 /// numa thread e precisa sobreviver às chamadas de comando; guardar o
 /// "sinalizador de parada" aqui deixa `stop_watch` desligar a thread certa.
+
 fn watchers() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
     static W: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
     W.get_or_init(|| Mutex::new(HashMap::new()))
@@ -212,6 +213,22 @@ fn get_startup_file() -> Option<String> {
         .find(|a| a.to_lowercase().ends_with(".tflow") && Path::new(a).is_file())
 }
 
+/// Contorna a titlebar quebrada do tao <= 0.35 no GNOME/Wayland (CSD propia
+/// com regiao de input morta — causa e fix em tao#1218, so via tauri 2.12):
+/// troca por uma HeaderBar comum com layout forcado min/max/fechar, ANTES do
+/// primeiro map. Sai junto com o upgrade ao tao 0.36 (wry 0.56).
+#[cfg(target_os = "linux")]
+fn instalar_csd_limpa(w: &tauri::WebviewWindow) {
+    use gtk::prelude::*;
+    let Ok(gw) = w.gtk_window() else { return };
+    let header = gtk::HeaderBar::new();
+    header.set_show_close_button(true);
+    header.set_decoration_layout(Some("menu:minimize,maximize,close"));
+    header.set_title(Some("LocalAutomation"));
+    header.show();
+    gw.set_titlebar(Some(&header));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // ── Contorno da tela branca do webkit: REMOVIDO, e o porquê importa ──────
@@ -263,6 +280,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+
+            #[cfg(target_os = "linux")]
+            if let Some(w) = app.get_webview_window("main") {
+                instalar_csd_limpa(&w);
+            }
             let handle = app.handle().clone();
             tray::init_state(&handle);
             tray::setup(&handle, || ARMED.load(Ordering::Relaxed))?;

@@ -2502,6 +2502,7 @@ version = "0.7.7"
 dependencies = [
  "boa_engine",
  "filetime",
+ "gtk",
  "keyring",
  "notify",
  "notify-rust",
